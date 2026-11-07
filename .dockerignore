@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+# Laptop deploy files (secrets, backups) never go into the image
+deploy/
+docker-compose.yml
