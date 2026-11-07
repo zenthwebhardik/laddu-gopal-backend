@@ -2,6 +2,9 @@
 Authentication router — register & login with JWT.
 """
 
+import hmac
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,6 +13,7 @@ from ..models.user import UserCreate, UserLogin, UserResponse, Token
 from ..models.db import User
 from ..database import get_db
 from ..services.auth_service import hash_password, verify_password, create_access_token
+from ..config import settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -48,6 +52,26 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
 @router.post("/login", response_model=Token)
 async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
     """Authenticate user credentials and return a JWT."""
+    clean_email = payload.email.strip().lower()
+    clean_password = payload.password.strip()
+
+    # Admin login: credentials come only from the server's .env (ADMIN_EMAIL / ADMIN_PASSCODE).
+    admin_configured = bool(settings.admin_email and settings.admin_passcode)
+    if (
+        admin_configured
+        and hmac.compare_digest(clean_email, settings.admin_email.strip().lower())
+        and hmac.compare_digest(clean_password, settings.admin_passcode)
+    ):
+        token = create_access_token(data={"sub": settings.admin_email, "name": "Admin", "role": "admin"})
+        admin_user = UserResponse(
+            id=1,
+            name="Admin",
+            email=settings.admin_email,
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        return Token(access_token=token, user=admin_user)
+
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
     
